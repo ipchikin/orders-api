@@ -1,44 +1,39 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"log"
-	"os"
+	"net/http"
+	"orders-api/configs"
+	ordersctr "orders-api/controllers/v1/orders"
+	"orders-api/models"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func setupRouter() *gin.Engine {
-	// Disable Console Color
+	cfg, err := loadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	gin.DisableConsoleColor()
-
-	// Access log
-	accessLog, err := os.Create("logs/access.log")
-	if err != nil {
-		fmt.Println(err)
-	}
-	gin.DefaultWriter = io.MultiWriter(accessLog)
-
-	// Error log
-	errorLog, err := os.Create("logs/error.log")
-	if err != nil {
-		fmt.Println(err)
-	}
-	gin.DefaultErrorWriter = io.MultiWriter(errorLog)
 
 	r := gin.New()
 
-	// Logger middleware write the logs to gin.DefaultWriter
+	// Use middlewares
 	r.Use(gin.Logger())
-
-	// Recovery middleware recovers from any panics and writes a 500 if there was one
 	r.Use(gin.Recovery())
+	r.Use(ConfigMiddleware(cfg))
+	r.Use(HTTPClientMiddleware())
+	r.Use(DBMiddleware(cfg))
 
-	// Ping
+	// Routes
 	r.GET("/ping", func(c *gin.Context) {
-		c.String(200, "pong")
+		c.String(http.StatusOK, "OK")
 	})
+
+	r.POST("/orders", ordersctr.PlaceOrder)
 
 	return r
 }
@@ -48,5 +43,58 @@ func main() {
 	err := r.Run(":8080")
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+// loadConfig loads config according to gin mode
+func loadConfig() (cfg configs.Config, err error) {
+	if mode := gin.Mode(); mode == gin.ReleaseMode {
+		cfg, err = configs.LoadConfig("prod")
+	} else if mode == gin.TestMode {
+		cfg, err = configs.LoadConfig("test")
+	} else {
+		cfg, err = configs.LoadConfig("dev")
+	}
+
+	return
+}
+
+// ConfigMiddleware sets loaded config to gin context
+func ConfigMiddleware(cfg configs.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("config", cfg)
+		c.Next()
+	}
+}
+
+// HTTPClientMiddleware sets a http client to gin context
+func HTTPClientMiddleware() gin.HandlerFunc {
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	return func(c *gin.Context) {
+		c.Set("client", client)
+		c.Next()
+	}
+}
+
+// DBMiddleware connects to db and sets it to gin context
+func DBMiddleware(cfg configs.Config) gin.HandlerFunc {
+	bm := new(models.BaseModel)
+	err := bm.Connect(
+		cfg.DBConfig.Driver,
+		cfg.DBConfig.User,
+		cfg.DBConfig.Password,
+		cfg.DBConfig.Host,
+		cfg.DBConfig.Port,
+		cfg.DBConfig.Database,
+		cfg.DBConfig.MaxIdleConns,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return func(c *gin.Context) {
+		c.Set("db", *bm)
+		c.Next()
 	}
 }
