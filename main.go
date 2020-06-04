@@ -35,15 +35,23 @@ func setupRouter() *gin.Engine {
 
 	r.POST("/orders", ordersctr.PlaceOrder)
 
+	r.PATCH("/orders/:id", ordersctr.TakeOrder)
+
 	return r
 }
 
 func main() {
 	r := setupRouter()
-	err := r.Run(":8080")
-	if err != nil {
-		log.Fatal(err)
+
+	s := &http.Server{
+		Addr:           ":8080",
+		Handler:        r,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
+
+	log.Fatal(s.ListenAndServe())
 }
 
 // loadConfig loads config according to gin mode

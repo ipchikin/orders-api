@@ -7,7 +7,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// BaseModel of other db models
+// BaseModel of other models
 type BaseModel struct {
 	DB *sqlx.DB
 }
