@@ -76,7 +76,7 @@ func PlaceOrder(c *gin.Context) {
 	om := models.OrdersModel{BaseModel: c.MustGet("db").(models.BaseModel)}
 	id, err := om.Place(placeRequest.Origin, placeRequest.Destination, distance, status)
 	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		c.AbortWithError(http.StatusBadRequest, errors.New("Fail to place the order"))
 	}
 
 	c.JSON(http.StatusOK, &gin.H{
