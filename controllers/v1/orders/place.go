@@ -11,8 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PlaceData
-type PlaceData struct {
+// PlaceRequest
+type PlaceRequest struct {
 	Origin      [2]string `json:"origin" binding:"required"`
 	Destination [2]string `json:"destination" binding:"required"`
 }
@@ -36,87 +36,47 @@ type Distance struct {
 	Value uint32
 }
 
-// PlaceOrder
+// PlaceOrder controller
 func PlaceOrder(c *gin.Context) {
-	var placeData PlaceData
-	err := c.BindJSON(&placeData)
+	var placeRequest PlaceRequest
+	err := c.BindJSON(&placeRequest)
 	if err != nil {
 		c.AbortWithError(http.StatusBadRequest, err)
 	}
 
 	// Validate origin coordinates
-	ok := validateLatitude(placeData.Origin[0])
+	ok := validateLatitude(placeRequest.Origin[0])
 	if !ok {
 		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid origin latitude"))
 	}
-	ok = validateLongitude(placeData.Origin[1])
+	ok = validateLongitude(placeRequest.Origin[1])
 	if !ok {
 		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid origin longitude"))
 	}
 
 	// Validate destination coordinates
-	ok = validateLatitude(placeData.Destination[0])
+	ok = validateLatitude(placeRequest.Destination[0])
 	if !ok {
 		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid destination latitude"))
 	}
-	ok = validateLongitude(placeData.Destination[1])
+	ok = validateLongitude(placeRequest.Destination[1])
 	if !ok {
 		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid destination longitude"))
 	}
 
-	// Get config from gin context
-	cfg := c.MustGet("config").(configs.Config)
-
-	// Call Google Distance Matrix API
-	req, err := http.NewRequest(cfg.DistanceMatrixAPI.Method, cfg.DistanceMatrixAPI.URL, nil)
+	// Get the distance between origin and destination
+	distance, err := callDistanceMatrixAPI(c, placeRequest.Origin, placeRequest.Destination)
 	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
-	}
-
-	q := req.URL.Query()
-	q.Add("origins", placeData.Origin[0]+","+placeData.Origin[1])
-	q.Add("destinations", placeData.Destination[0]+","+placeData.Destination[1])
-	q.Add("key", cfg.DistanceMatrixAPI.Key)
-	req.URL.RawQuery = q.Encode()
-
-	// Get http client from gin context
-	client := c.MustGet("client").(*http.Client)
-	resp, err := client.Do(req)
-	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		c.AbortWithError(http.StatusInternalServerError, errors.New("Fail to get distance details"))
-	}
-
-	// Parse response body to struct
-	apiResp := DistanceMatrixAPIResponse{}
-	json.NewDecoder(resp.Body).Decode(&apiResp)
-
-	// Abort if status not ok
-	if apiResp.Status != "OK" {
-		c.AbortWithError(http.StatusInternalServerError, errors.New("Fail to get distance details"))
-	}
-
-	if apiResp.Rows[0].Elements[0].Status != "OK" {
-		c.AbortWithError(http.StatusBadRequest, errors.New("No route could be found between the origin and destination"))
-	}
-
-	distance := apiResp.Rows[0].Elements[0].Distance.Value
-	// Check if distance is valid
-	if distance == 0 {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Distance between the origin and destination is too small"))
+		c.AbortWithError(http.StatusBadRequest, errors.New("Fail to get the distance between origin and destination"))
 	}
 
 	status := "UNASSIGNED"
 
-	// Use orders model
+	// Place order
 	om := models.OrdersModel{BaseModel: c.MustGet("db").(models.BaseModel)}
-	id, err := om.Place(placeData.Origin, placeData.Destination, distance, status)
+	id, err := om.Place(placeRequest.Origin, placeRequest.Destination, distance, status)
 	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		c.AbortWithError(http.StatusBadRequest, errors.New("Fail to place the order"))
 	}
 
 	c.JSON(http.StatusOK, &gin.H{
@@ -144,4 +104,58 @@ func validateLongitude(long string) bool {
 	}
 
 	return matched
+}
+
+// callDistanceMatrixAPI
+func callDistanceMatrixAPI(c *gin.Context, origin, destination [2]string) (distance uint32, err error) {
+	// Get config from gin context
+	cfg := c.MustGet("config").(configs.Config)
+
+	// Call Google Distance Matrix API
+	req, err := http.NewRequest(cfg.DistanceMatrixAPI.Method, cfg.DistanceMatrixAPI.URL, nil)
+	if err != nil {
+		return
+	}
+
+	q := req.URL.Query()
+	q.Add("origins", origin[0]+","+origin[1])
+	q.Add("destinations", destination[0]+","+destination[1])
+	q.Add("key", cfg.DistanceMatrixAPI.Key)
+	req.URL.RawQuery = q.Encode()
+
+	// Get http client from gin context
+	client := c.MustGet("client").(*http.Client)
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		err = errors.New("Fail to get the distance between origin and destination")
+		return
+	}
+
+	// Parse response body to struct
+	apiResp := DistanceMatrixAPIResponse{}
+	json.NewDecoder(resp.Body).Decode(&apiResp)
+
+	// Abort if status not ok
+	if apiResp.Status != "OK" {
+		err = errors.New("Fail to get the distance between origin and destination")
+		return
+	}
+
+	if apiResp.Rows[0].Elements[0].Status != "OK" {
+		err = errors.New("Fail to get the distance between origin and destination")
+		return
+	}
+
+	distance = apiResp.Rows[0].Elements[0].Distance.Value
+	// Check if distance is valid
+	if distance == 0 {
+		err = errors.New("Fail to get the distance between origin and destination")
+	}
+
+	return
 }
