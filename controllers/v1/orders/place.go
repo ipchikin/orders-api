@@ -36,7 +36,7 @@ type Distance struct {
 	Value uint32
 }
 
-// PlaceOrder
+// PlaceOrder controller
 func PlaceOrder(c *gin.Context) {
 	var placeRequest PlaceRequest
 	err := c.BindJSON(&placeRequest)
