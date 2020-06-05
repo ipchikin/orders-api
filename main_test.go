@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -27,6 +28,9 @@ func TestMainTestSuite(t *testing.T) {
 
 // SetupSuite
 func (suite *MainTestSuite) SetupSuite() {
+	// Load .env
+	suite.Nil(godotenv.Load())
+
 	// Load test config
 	gin.SetMode(gin.TestMode)
 	cfg, err := loadConfig()
@@ -64,6 +68,13 @@ func (suite *MainTestSuite) BeforeTest(suiteName, testName string) {
 
 	// Reset the HTTP request
 	suite.W = httptest.NewRecorder()
+}
+
+// TearDownSuite will be executed after all tests
+func (suite *MainTestSuite) TearDownSuite() {
+	// Truncate orders table
+	_, err := suite.BM.DB.Exec("TRUNCATE TABLE orders")
+	suite.Nil(err)
 }
 
 // TestPlaceOrder with correct coordinates
