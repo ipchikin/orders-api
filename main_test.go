@@ -51,8 +51,9 @@ func (suite *MainTestSuite) SetupSuite() {
 
 // BeforeTest will be executed before every test
 func (suite *MainTestSuite) BeforeTest(suiteName, testName string) {
-	// Reset the HTTP request
-	suite.W = httptest.NewRecorder()
+	// Truncate orders table
+	_, err := suite.BM.DB.Exec("TRUNCATE TABLE orders")
+	suite.Nil(err)
 
 	// Create sample order
 	res, err := suite.BM.DB.Exec(`INSERT INTO orders (id, origin_lat, origin_long, destination_lat, destination_long, distance, status) VALUES (?, '22.281980', '114.161370', '22.318359', '114.157913', 7635, 'UNASSIGNED')`, suite.SampleOrderID)
@@ -60,13 +61,9 @@ func (suite *MainTestSuite) BeforeTest(suiteName, testName string) {
 	affected, err := res.RowsAffected()
 	suite.Nil(err)
 	suite.Equal(int64(1), affected)
-}
 
-// AfterTest will be executed after every test
-func (suite *MainTestSuite) AfterTest(suiteName, testName string) {
-	// Truncate orders table
-	_, err := suite.BM.DB.Exec("TRUNCATE TABLE orders")
-	suite.Nil(err)
+	// Reset the HTTP request
+	suite.W = httptest.NewRecorder()
 }
 
 // TestPlaceOrder with correct coordinates
@@ -101,7 +98,6 @@ func (suite *MainTestSuite) TestTakeOrder() {
 
 // TestTakeOrder with race condition
 func (suite *MainTestSuite) TestTakeOrderRace() {
-	// Begin transaction
 	tx, err := suite.BM.DB.Beginx()
 	suite.Nil(err)
 
@@ -117,4 +113,13 @@ func (suite *MainTestSuite) TestTakeOrderRace() {
 	suite.Equal(http.StatusBadRequest, suite.W.Code)
 
 	suite.Nil(tx.Rollback())
+}
+
+// TestListOrders with correct page and limit
+func (suite *MainTestSuite) TestListOrders() {
+	req, _ := http.NewRequest("GET", "/orders?page=1&limit=10", nil)
+	req.Header.Set("Content-Type", "application/json")
+	suite.Router.ServeHTTP(suite.W, req)
+
+	suite.Equal(http.StatusOK, suite.W.Code)
 }

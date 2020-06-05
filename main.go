@@ -30,12 +30,14 @@ func setupRouter() *gin.Engine {
 
 	// Routes
 	r.GET("/ping", func(c *gin.Context) {
-		c.String(http.StatusOK, "OK")
+		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
 	r.POST("/orders", ordersctr.PlaceOrder)
 
 	r.PATCH("/orders/:id", ordersctr.TakeOrder)
+
+	r.GET("/orders", ordersctr.ListOrders)
 
 	return r
 }

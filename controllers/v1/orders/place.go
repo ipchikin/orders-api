@@ -6,15 +6,14 @@ import (
 	"net/http"
 	"orders-api/configs"
 	"orders-api/models"
-	"regexp"
 
 	"github.com/gin-gonic/gin"
 )
 
 // PlaceRequest
 type PlaceRequest struct {
-	Origin      [2]string `json:"origin" binding:"required"`
-	Destination [2]string `json:"destination" binding:"required"`
+	Origin      [2]string `binding:"required"`
+	Destination [2]string `binding:"required"`
 }
 
 // DistanceMatrixAPIResponse
@@ -41,33 +40,39 @@ func PlaceOrder(c *gin.Context) {
 	var placeRequest PlaceRequest
 	err := c.BindJSON(&placeRequest)
 	if err != nil {
-		c.AbortWithError(http.StatusBadRequest, err)
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid request body")
+		return
 	}
 
 	// Validate origin coordinates
 	ok := validateLatitude(placeRequest.Origin[0])
 	if !ok {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid origin latitude"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid origin latitude")
+		return
 	}
 	ok = validateLongitude(placeRequest.Origin[1])
 	if !ok {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid origin longitude"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid origin longitude")
+		return
 	}
 
 	// Validate destination coordinates
 	ok = validateLatitude(placeRequest.Destination[0])
 	if !ok {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid destination latitude"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid destination latitude")
+		return
 	}
 	ok = validateLongitude(placeRequest.Destination[1])
 	if !ok {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid destination longitude"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid destination longitude")
+		return
 	}
 
 	// Get the distance between origin and destination
 	distance, err := callDistanceMatrixAPI(c, placeRequest.Origin, placeRequest.Destination)
 	if err != nil {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Fail to get the distance between origin and destination"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Fail to get the distance between origin and destination")
+		return
 	}
 
 	status := "UNASSIGNED"
@@ -76,34 +81,11 @@ func PlaceOrder(c *gin.Context) {
 	om := models.OrdersModel{BaseModel: c.MustGet("db").(models.BaseModel)}
 	id, err := om.Place(placeRequest.Origin, placeRequest.Destination, distance, status)
 	if err != nil {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Fail to place the order"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Fail to place the order")
+		return
 	}
 
-	c.JSON(http.StatusOK, &gin.H{
-		"id":       id,
-		"distance": distance,
-		"status":   status,
-	})
-}
-
-// validateLatitude
-func validateLatitude(lat string) bool {
-	matched, err := regexp.MatchString(`^(\+|-)?(?:90(?:(?:\.0+)?)|(?:[0-9]|[1-8][0-9])(?:(?:\.[0-9]+)?))$`, lat)
-	if err != nil {
-		return false
-	}
-
-	return matched
-}
-
-// validateLongitude
-func validateLongitude(long string) bool {
-	matched, err := regexp.MatchString(`^(\+|-)?(?:180(?:(?:\.0+)?)|(?:[0-9]|[1-9][0-9]|1[0-7][0-9])(?:(?:\.[0-9]+)?))$`, long)
-	if err != nil {
-		return false
-	}
-
-	return matched
+	c.JSON(http.StatusOK, models.Order{ID: id, Distance: distance, Status: status})
 }
 
 // callDistanceMatrixAPI

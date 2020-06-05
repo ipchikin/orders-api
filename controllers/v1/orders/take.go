@@ -1,7 +1,6 @@
 package orders
 
 import (
-	"errors"
 	"net/http"
 	"orders-api/models"
 
@@ -19,27 +18,31 @@ func TakeOrder(c *gin.Context) {
 	var takeRequest TakeRequest
 	err := c.BindJSON(&takeRequest)
 	if err != nil {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid request body"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid request body")
+		return
 	}
 
 	// Check if TakeRequest status is valid
 	if takeRequest.Status != "TAKEN" {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid request status value"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid request status value")
+		return
 	}
 
 	// Check if id is a valid uuid
 	id := c.Param("id")
 	_, err = uuid.Parse(id)
 	if err != nil {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Invalid request id value"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Invalid request id value")
+		return
 	}
 
 	// Take order
 	om := models.OrdersModel{BaseModel: c.MustGet("db").(models.BaseModel)}
 	err = om.Take(id, takeRequest.Status)
 	if err != nil {
-		c.AbortWithError(http.StatusBadRequest, errors.New("Fail to take the order"))
+		abortWithErrorJSON(c, http.StatusBadRequest, "Fail to take the order")
+		return
 	}
 
-	c.JSON(http.StatusOK, &gin.H{"status": "SUCCESS"})
+	c.JSON(http.StatusOK, gin.H{"status": "SUCCESS"})
 }

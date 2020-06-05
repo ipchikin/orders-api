@@ -8,5 +8,6 @@ CREATE TABLE `orders` (
   `status` varchar(255) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_list_orders` (`id`,`distance`,`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;

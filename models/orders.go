@@ -13,15 +13,15 @@ type OrdersModel struct {
 }
 
 type Order struct {
-	ID       string
-	Distance uint32
-	Status   string
+	ID       string `json:"id"`
+	Distance uint32 `json:"distance"`
+	Status   string `json:"status"`
 }
 
 // Place order
 func (om *OrdersModel) Place(origin, destination [2]string, distance uint32, status string) (id string, err error) {
 	id = uuid.New().String()
-	_, err = om.DB.Exec(`INSERT INTO orders (id, origin_lat, origin_long, destination_lat, destination_long, distance, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	_, err = om.DB.Exec("INSERT INTO orders (id, origin_lat, origin_long, destination_lat, destination_long, distance, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		id, origin[0], origin[1], destination[0], destination[1], distance, status)
 
 	return
@@ -74,4 +74,17 @@ func (om *OrdersModel) Take(id, status string) (err error) {
 	}
 
 	return tx.Commit()
+}
+
+// List orders
+func (om *OrdersModel) List(page, limit int) ([]Order, error) {
+	orders := []Order{}
+
+	// Add 5s timeout for getting order
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := om.DB.SelectContext(ctx, &orders, "SELECT id, distance, status FROM orders INNER JOIN (SELECT id FROM orders LIMIT ?, ?) t USING (id)", (page-1)*limit, limit)
+
+	return orders, err
 }
