@@ -2,9 +2,12 @@ package models
 
 import (
 	"orders-api/configs"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -22,6 +25,11 @@ func TestOrdersTestSuite(t *testing.T) {
 
 // SetupSuite
 func (suite *OrdersTestSuite) SetupSuite() {
+	// Load .env
+	_, caller, _, ok := runtime.Caller(0)
+	suite.True(ok)
+	suite.Nil(godotenv.Load(filepath.Join(filepath.Dir(caller), "..") + "/.env"))
+
 	// Load test config
 	gin.SetMode(gin.TestMode)
 	cfg, err := configs.LoadConfig("test")
@@ -54,6 +62,13 @@ func (suite *OrdersTestSuite) BeforeTest(suiteName, testName string) {
 	affected, err := res.RowsAffected()
 	suite.Nil(err)
 	suite.Equal(int64(1), affected)
+}
+
+// TearDownSuite will be executed after all tests
+func (suite *OrdersTestSuite) TearDownSuite() {
+	// Truncate orders table
+	_, err := suite.OM.DB.Exec("TRUNCATE TABLE orders")
+	suite.Nil(err)
 }
 
 // TestPlace

@@ -2,13 +2,21 @@ package models
 
 import (
 	"orders-api/configs"
+	"path/filepath"
+	"runtime"
 	"testing"
 
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 )
 
 // TestConnect to db
 func TestConnect(t *testing.T) {
+	// Load .env
+	_, caller, _, ok := runtime.Caller(0)
+	assert.True(t, ok)
+	assert.Nil(t, godotenv.Load(filepath.Join(filepath.Dir(caller), "..")+"/.env"))
+
 	cfg, err := configs.LoadConfig("test")
 	assert.Nil(t, err)
 

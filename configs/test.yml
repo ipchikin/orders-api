@@ -1,13 +1,10 @@
 db_config:
   driver: mysql
   host: 127.0.0.1
-  port: 3306
+  port: 13306
   user: root
-  password:
-  database: orders-api
-  max_idle_conns: 5
+  max_idle_conns: 2
 api_config:
   distance_matrix_api:
     url: https://maps.googleapis.com/maps/api/distancematrix/json
     method: GET
-    key:

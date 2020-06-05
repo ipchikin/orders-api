@@ -2,6 +2,7 @@ package configs
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"runtime"
 
@@ -58,6 +59,11 @@ func LoadConfig(mode string) (config Config, err error) {
 
 	// Unmarshal to config struct
 	err = viper.Unmarshal(&config)
+
+	// Load env vars
+	config.DBConfig.Password = os.Getenv("MYSQL_ROOT_PASSWORD")
+	config.DBConfig.Database = os.Getenv("MYSQL_DATABASE")
+	config.DistanceMatrixAPI.Key = os.Getenv("MAPS_API_KEY")
 
 	return
 }
