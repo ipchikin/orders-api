@@ -13,7 +13,7 @@ MYSQL_ROOT_PASSWORD=your_db_password
 MAPS_API_KEY=your_api_key
 ```
 
-Then run `./start.sh`
+Then run `./start.sh`, the API server will run on port `8080` and the db will run on port `13306`.
 
 ## Notes
 
